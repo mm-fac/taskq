@@ -20,16 +20,24 @@ import (
 //
 // Scope selects which non-malformed lines are eligible: the default is OPEN
 // tasks from the task file only; `--all` adds completed tasks; `--done` shows
-// completed tasks only. `--all` and `--done` conflict (usage error). None of
-// these read done.txt. The `--project`, `--context`, and `--overdue` filters
-// then AND together over the eligible tasks. Finally an optional `--sort`
-// reorders the survivors stably (ties and no-value groups keep file order),
-// with the line number staying attached to its task through the reordering.
+// completed tasks only. None of these read done.txt. `--archived` instead
+// reads the sibling done.txt (same directory as the resolved task file) and
+// lists every well-formed line regardless of completion state, with N the
+// 1-based line number within done.txt; these numbers are read-only and no
+// mutating command ever addresses done.txt. A missing done.txt is an empty
+// listing, exit 0 (read-command convention). The scope selectors are mutually
+// exclusive where the requirements say so: `--all`/`--done` conflict, and
+// `--archived` conflicts with each of `--all` and `--done` (usage error). The
+// `--project`, `--context`, and `--overdue` filters then AND together over the
+// eligible tasks. Finally an optional `--sort` reorders the survivors stably
+// (ties and no-value groups keep file order), with the line number staying
+// attached to its task through the reordering. All of this is read-only: list
+// uses the store's Load and never writes any file, done.txt included.
 
 func init() {
 	register(command{
 		name:    "list",
-		summary: "print tasks (list [--project P] [--context C] [--overdue] [--sort pri|due|created] [--all|--done])",
+		summary: "print tasks (list [--project P] [--context C] [--overdue] [--sort pri|due|created] [--all|--done|--archived])",
 		run:     runList,
 	})
 }
@@ -49,13 +57,14 @@ func runList(ctx *cmdContext) error {
 	fs := flag.NewFlagSet("list", flag.ContinueOnError)
 	fs.SetOutput(io.Discard) // we print our own taskq:-prefixed diagnostics
 	var project, context, sortKey string
-	var overdue, all, done bool
+	var overdue, all, done, archived bool
 	fs.StringVar(&project, "project", "", "keep tasks with the exact token +P")
 	fs.StringVar(&context, "context", "", "keep tasks with the exact token @C")
 	fs.BoolVar(&overdue, "overdue", false, "keep tasks whose due: date is before today")
 	fs.StringVar(&sortKey, "sort", "", "sort by pri, due, or created")
 	fs.BoolVar(&all, "all", false, "show open and completed tasks")
 	fs.BoolVar(&done, "done", false, "show completed tasks only")
+	fs.BoolVar(&archived, "archived", false, "list tasks from done.txt instead of the task file")
 	if err := fs.Parse(ctx.args); err != nil {
 		return usagef("list: %v", err)
 	}
@@ -63,9 +72,17 @@ func runList(ctx *cmdContext) error {
 		return usagef("list: unexpected argument %q", rest[0])
 	}
 
-	// --all and --done select mutually exclusive scopes.
+	// The scope selectors are mutually exclusive where the requirements say so:
+	// --all/--done pick conflicting task-file scopes, and --archived switches the
+	// source to done.txt, so it cannot be combined with either.
 	if all && done {
 		return usagef("list: --all and --done cannot be combined")
+	}
+	if archived && all {
+		return usagef("list: --archived and --all cannot be combined")
+	}
+	if archived && done {
+		return usagef("list: --archived and --done cannot be combined")
 	}
 	switch sortKey {
 	case "", "pri", "due", "created":
@@ -73,12 +90,20 @@ func runList(ctx *cmdContext) error {
 		return usagef("list: invalid --sort %q: want pri, due, or created", sortKey)
 	}
 
-	// Scope: open tasks are shown unless --done narrows to completed only;
-	// completed tasks are shown only with --all or --done. None reads done.txt.
+	// Scope and source. By default we read the task file: open tasks are shown
+	// unless --done narrows to completed only, and completed tasks are shown only
+	// with --all or --done. --archived instead reads the sibling done.txt and
+	// lists every well-formed line regardless of completion state (open and
+	// completed alike). A missing source file is an empty listing, not an error.
+	source := ctx.filePath
 	showOpen := !done
 	showDone := all || done
+	if archived {
+		source = ctx.donePath
+		showOpen, showDone = true, true
+	}
 
-	tasks, malformed, err := Load(ctx.filePath)
+	tasks, malformed, err := Load(source)
 	if err != nil {
 		return err
 	}

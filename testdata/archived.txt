@@ -1,0 +1,7 @@
+x 2026-07-15 2026-07-14 write the report +work
+(A) 2026-07-14 hand-edited open task +errands @phone due:2026-07-20
+x 2026-07-16 2026-07-10 file taxes +home due:2026-07-01
+
+x 2026-07-12 2026-07-11 pay rent +home
+   
+2026-07-13 another open line @desk
