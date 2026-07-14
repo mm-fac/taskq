@@ -102,6 +102,13 @@ func TestDueHappyPath(t *testing.T) {
 			wantFile: "2026-07-14 pay rent now\n",
 		},
 		{
+			name:     "none removes consecutive trailing due tokens without dangling space",
+			seed:     "2026-07-14 buy due:2026-01-01 due:2026-02-02\n",
+			args:     []string{"1", "none"},
+			wantOut:  "1 2026-07-14 buy\n",
+			wantFile: "2026-07-14 buy\n",
+		},
+		{
 			name:     "none is a no-op when there is no due token",
 			seed:     "2026-07-14 buy milk\n",
 			args:     []string{"1", "none"},

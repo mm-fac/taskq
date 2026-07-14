@@ -150,8 +150,20 @@ func applyDue(text, date string, remove bool) (string, bool) {
 		}
 		if e < len(text) && text[e] == ' ' {
 			keep[e] = false
-		} else if s > 0 && text[s-1] == ' ' {
-			keep[s-1] = false
+			return
+		}
+		// No following space (the token ends the text). Consume one preceding
+		// separator space, skipping bytes an earlier removal already cleared, so
+		// a run of adjacent trailing `due:` tokens nets exactly one space per
+		// token instead of all fighting over the same already-consumed space.
+		for j := s - 1; j >= 0; j-- {
+			if !keep[j] {
+				continue
+			}
+			if text[j] == ' ' {
+				keep[j] = false
+			}
+			break
 		}
 	}
 
