@@ -167,6 +167,10 @@ func TestPriUsageErrors(t *testing.T) {
 		{"out of range zero", "2026-07-14 only task\n", []string{"0", "A"}},
 		{"negative", "2026-07-14 only task\n", []string{"-1", "A"}},
 		{"malformed target", "\n2026-07-14 real\n", []string{"1", "A"}},
+		// CAP-15: a line that looks like a completed task but carries a
+		// calendar-invalid completion date is malformed; addressing pri at it is
+		// a usage error and the file is left byte-for-byte unchanged.
+		{"broken-completion target", "x 2026-13-99 broken\n", []string{"1", "A"}},
 		{"non-numeric number", "2026-07-14 real\n", []string{"abc", "A"}},
 		{"no args", "2026-07-14 real\n", nil},
 		{"one arg", "2026-07-14 real\n", []string{"1"}},

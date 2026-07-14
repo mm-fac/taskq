@@ -15,10 +15,11 @@ import (
 //	date       = YYYY-MM-DD                 (zero-padded, calendar-valid)
 //	text       = rest of line; may contain +project @context due:YYYY-MM-DD tokens
 //
-// A line that does not satisfy the grammar (including a blank/empty line, or a
-// line consisting solely of the structured prefixes with no text) is
-// classified Malformed; its original bytes are preserved verbatim in Raw and no
-// other field is meaningful. Downstream code must keep malformed lines
+// A line that does not satisfy the grammar (including a blank/empty line, a
+// line consisting solely of the structured prefixes with no text, or a leading
+// "x " completion marker whose date slot is date-shaped but not calendar-valid)
+// is classified Malformed; its original bytes are preserved verbatim in Raw and
+// no other field is meaningful. Downstream code must keep malformed lines
 // byte-for-byte.
 //
 // For a well-formed Task, Render reproduces the original line byte-for-byte.
@@ -56,9 +57,20 @@ func ParseLine(raw string) Task {
 	rest := raw
 
 	// [completion] = "x " completion-date " "
+	//
+	// A leading "x " followed by a date-SHAPED token and a space structurally
+	// declares a completed task (the "x " sigil is reserved for completion in
+	// this format). If that date is calendar-valid it is a real completion
+	// marker; if it is date-shaped but invalid (e.g. "2026-13-99"), the line is
+	// a broken completed task and is malformed — not free text. A leading "x "
+	// that is NOT followed by a date-shaped token (e.g. "x not a completion")
+	// carries no completion intent and stays plain text.
 	if strings.HasPrefix(rest, "x ") {
 		after := rest[2:]
-		if len(after) >= 11 && after[10] == ' ' && validDate(after[:10]) {
+		if len(after) >= 11 && after[10] == ' ' && dateShaped(after[:10]) {
+			if !validDate(after[:10]) {
+				return Task{Raw: raw, Malformed: true}
+			}
 			t.Completed = true
 			t.CompletionDate = after[:10]
 			rest = after[11:]
@@ -113,11 +125,12 @@ func (t Task) Render() string {
 	return b.String()
 }
 
-// validDate reports whether s is a zero-padded, calendar-valid YYYY-MM-DD date.
-// The explicit shape check enforces the zero-padding and layout (so "2026-7-14"
-// is rejected), and time.Parse enforces calendar validity (so "2026-02-30" and
-// "2026-13-01" are rejected).
-func validDate(s string) bool {
+// dateShaped reports whether s has the zero-padded YYYY-MM-DD layout: exactly
+// ten bytes, '-' at positions 4 and 7, and digits everywhere else (so
+// "2026-7-14" is rejected). It does NOT check calendar validity — "2026-13-99"
+// is date-shaped but not a real date. The parser uses shape to decide whether a
+// slot was MEANT to hold a date; validDate then decides whether that date is legal.
+func dateShaped(s string) bool {
 	if len(s) != 10 || s[4] != '-' || s[7] != '-' {
 		return false
 	}
@@ -128,6 +141,16 @@ func validDate(s string) bool {
 		if s[i] < '0' || s[i] > '9' {
 			return false
 		}
+	}
+	return true
+}
+
+// validDate reports whether s is a zero-padded, calendar-valid YYYY-MM-DD date.
+// The shape check enforces the zero-padding and layout, and time.Parse enforces
+// calendar validity (so "2026-02-30" and "2026-13-01" are rejected).
+func validDate(s string) bool {
+	if !dateShaped(s) {
+		return false
 	}
 	_, err := time.Parse("2006-01-02", s)
 	return err == nil

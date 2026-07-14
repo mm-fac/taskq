@@ -200,6 +200,11 @@ func TestMalformed(t *testing.T) {
 		{"date with no text", "2026-07-14 "},
 		{"completed with no text", "x 2026-07-15 "},
 		{"completed date with no text", "x 2026-07-15 2026-07-14 "},
+		// A leading "x " with a date-SHAPED but calendar-invalid completion date
+		// is a broken completed task, not free text: it is malformed (CAP-15).
+		{"broken completion date (month)", "x 2026-13-99 broken"},
+		{"broken completion date (day)", "x 2026-02-30 nope"},
+		{"broken completion date (zeros)", "x 2026-00-00 nope"},
 	}
 
 	for _, c := range cases {
@@ -225,6 +230,13 @@ func TestWellFormedNotMalformed(t *testing.T) {
 		"hello",
 		"(a) lowercase stays text",
 		"x still text",
+		// A leading "x " whose next token is not date-shaped carries no
+		// completion intent, so it stays plain text (only a date-shaped-but-
+		// invalid completion slot is malformed — see TestMalformed).
+		"x nope not a date here",
+		// No trailing space after the date-shaped token means it is not
+		// structurally a completion marker, so the whole line is text.
+		"x 2026-13-99",
 		"2026-13-01 bad date is just text",
 		"   leading spaces then text",
 	} {
