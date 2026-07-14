@@ -1,0 +1,2 @@
+2026-07-14 task without a context +project
+x 2026-07-15 2026-07-14 completed @only
