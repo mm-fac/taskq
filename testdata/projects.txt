@@ -1,0 +1,6 @@
+(A) 2026-07-14 call the bank +errands +Work @phone due:2026-07-20
+x 2026-07-15 2026-07-14 write the report +ghost
+
+2026-07-14 buy milk +home +errands + @store
+   
+(B) 2026-07-10 file taxes +Work +admin
