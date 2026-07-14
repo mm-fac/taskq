@@ -2,12 +2,8 @@
 // v0.1 specification; the work-item graph builds it out from this stub.
 package main
 
-import (
-	"fmt"
-	"os"
-)
+import "os"
 
 func main() {
-	fmt.Fprintln(os.Stderr, "taskq: no command given (see requirements.md)")
-	os.Exit(1)
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr, os.Getenv))
 }
