@@ -1,0 +1,35 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go build ./...
+      - run: go test ./...
+  protected-paths:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Worker branches must not touch protected paths
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then echo "push - n/a"; exit 0; fi
+          case "${{ github.head_ref }}" in
+            claude/*|codex/*)
+              git fetch -q origin "${{ github.base_ref }}"
+              CHANGED=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
+              echo "$CHANGED"
+              if echo "$CHANGED" | grep -qE '^(\.github/|AGENTS\.md$|CLAUDE\.md$|requirements\.md$|\.claude|\.mcp\.json$)'; then
+                echo "::error::worker branch touches a protected path"; exit 1
+              fi
+              echo "clean" ;;
+            *) echo "operator branch - exempt" ;;
+          esac
